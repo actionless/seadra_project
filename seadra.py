@@ -2,7 +2,9 @@
 import sys
 import os
 import urllib
-from PyQt5 import QtCore, QtGui, QtWebKit
+from PyQt5.QtCore import QTimer
+from PyQt5.QtWebKitWidgets import QWebView, QWebPage
+from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QPalette
 from subprocess import Popen, PIPE
@@ -10,7 +12,7 @@ from subprocess import Popen, PIPE
 
 import time
 import dbus
-import re
+#import re
 
 # @TODO: change appPath method
 appPath = os.path.dirname(os.path.realpath(__file__))
@@ -43,7 +45,7 @@ class Browser:
             metadata = False
         MSG = html_template
         # @TODO: create shell::{some command} parser
-        MSG = MSG.replace('%UNAME%', shell_cmd('uname -a'))
+        MSG = MSG.replace('%UNAME%', shell_cmd('uname -a').decode('UTF-8'))
         if metadata:
             MSG = MSG.replace('%ARTIST%', metadata['artist'])
             MSG = MSG.replace('%ALBUM%', metadata['album'])
@@ -121,8 +123,8 @@ class Browser:
         @TODO: clean it
         """
         global metadata
-        self.app = QtGui.QApplication(sys.argv)
-        self.window = QtGui.QMainWindow()
+        self.app = QApplication(sys.argv)
+        self.window = QMainWindow()
         # ------------------------------------------------------------ #
         desktop = self.getDesktop()
         print(desktop)
@@ -135,21 +137,21 @@ class Browser:
             self.window.setWindowFlags(Qt.WindowStaysOnBottomHint)
         self.window.setAttribute(Qt.WA_TranslucentBackground)
         # ------------------------------------------------------------ #
-        self.web_view = QtWebKit.QWebView()
+        self.web_view = QWebView()
         # trasparent webview
         palette = self.web_view.palette()
         palette.setBrush(QPalette.Base, Qt.transparent)
         self.web_view.page().setPalette(palette)
-        self.web_view.page().setLinkDelegationPolicy(QtWebKit.QWebPage.DelegateAllLinks)
+        self.web_view.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
         self.web_view.loadFinished.connect(self._on_pageLoaded)
         self.web_view.linkClicked.connect(self._on_navigation)
         self.window.setCentralWidget(self.web_view)
         #self.web_view.load(QUrl(self.default_site))
         self.web_view.setHtml(html_template)
         #self.web_view.show()
-        self.dbus_timer = QtCore.QTimer()
+        self.dbus_timer = QTimer()
+        self.dbus_timer.timeout.connect(self.dbus_reader)
         self.dbus_timer.start(TIMER_INTERVAL)
-        QtCore.QObject.connect(self.dbus_timer, QtCore.SIGNAL("timeout()"), self.dbus_reader)
         #self.window.setCentralWidget(self.web_view)
 
     def main(self):
