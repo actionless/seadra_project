@@ -2,9 +2,9 @@
 import sys
 import os
 import urllib
-from PyQt4 import QtCore, QtGui, QtWebKit
-from PyQt4.QtCore import Qt, QUrl
-from PyQt4.QtGui import QPalette
+from PyQt5 import QtCore, QtGui, QtWebKit
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QPalette
 from subprocess import Popen, PIPE
 
 
