@@ -1,12 +1,12 @@
 seadra_project
 ==============
 
-python-made conky-wannabe
+python-made conky-wannabe (originally fork of http://xdaks.deviantart.com/art/Webkit-App-Bar-308471767)
 
 we need:
-python-pyqt5
-python-dbus
-qt5-webkit
+* python-pyqt5
+* python-dbus
+* qt5-webkit
 
 screenshot
 ==========
