@@ -1,4 +1,4 @@
-seadra_project
+seadra_project (abandoned for now)
 ==============
 
 python-made conky-wannabe (originally fork of http://xdaks.deviantart.com/art/Webkit-App-Bar-308471767)
