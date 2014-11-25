@@ -1,4 +1,5 @@
 <!DOCTYPE HTML>
+<html>
 <head>
   <meta http-equiv="content-type" content="text/html;charset=utf-8" />
   <link rel="stylesheet" href='file://%PATH%/style.css' type="text/css" />
@@ -6,40 +7,35 @@
 </head>
 <body>
 <div class="bar">
-
-<div id="player" style="width: %WIDTH%px;">
-
-  <div class="album_cover">
-    <img src='%ARTURL%' class="album_cover">
-  </div>
-
-  <div id="song_info">
-    <div id="title">
-      %TITLE%
+  <div id="player" style="width: %WIDTH%px;">
+    <div class="album_cover">
+      <img src='%ARTURL%' class="album_cover">
     </div>
-    <div id="album">
-      %ALBUM%
-    </div>
-    <div id="artist">
-      %ARTIST%
+    <div id="song_info">
+      <div id="title">
+        %TITLE%
+      </div>
+      <div id="album">
+        %ALBUM%
+      </div>
+      <div id="artist">
+        %ARTIST%
+      </div>
     </div>
   </div>
-
-</div>
-
-<a id="close" href="cmd::exit">x</a>
-<!--
-<div id="launcher">
-  <div class="hdr">apps</div>
-    <a class="menu" href="cmd::defaultBrowser">browser</a>
-    <a class="menu" href="cmd::gimp">gimp</a>
-    <a class="menu" href="cmd::vlc">vlc</a>
-    <a class="menu" href="cmd::kate">editor</a>
-  <div class="hdr">places</div>
-    <a class="menu" href="cmd::defaultFileManager $HOME">home</a>
-    <a class="menu" href="cmd::defaultFileManager $HOME/.config">config</a>
-</div>
--->
+  <a id="close" href="cmd::exit">x</a>
+  <!--
+  <div id="launcher">
+    <div class="hdr">apps</div>
+      <a class="menu" href="cmd::defaultBrowser">browser</a>
+      <a class="menu" href="cmd::gimp">gimp</a>
+      <a class="menu" href="cmd::vlc">vlc</a>
+      <a class="menu" href="cmd::kate">editor</a>
+    <div class="hdr">places</div>
+      <a class="menu" href="cmd::defaultFileManager $HOME">home</a>
+      <a class="menu" href="cmd::defaultFileManager $HOME/.config">config</a>
+  </div>
+  -->
 </div>
 </body>
 </html>

@@ -28,6 +28,17 @@ def get_desktop_name():
         else desktop_session.lower()
 
 
+def normalize_command(cmd):
+    cmd = cmd.replace('cmd::', '')
+    cmd = urllib.parse.unquote_plus(cmd)
+    cmd = os.path.expandvars(cmd)
+    if 'defaultBrowser' in cmd:
+        cmd = cmd.replace('defaultBrowser', DEFAULT_BROWSER)
+    if 'defaultFileManager' in cmd:
+        cmd = cmd.replace('defaultFileManager', DEFAULT_FM)
+    return cmd
+
+
 def shell_cmd(cmd):
     try:
         p = Popen(cmd, shell=True, stdout=PIPE)
@@ -54,7 +65,7 @@ class Application:
     # ---------------------------------------------------------------- #
 
     # event -  onLinkCliked
-    def _on_navigation(self, url):
+    def on_navigation(self, url):
         url = str(url.toString())
         if self.on_command(url):
             return True
@@ -63,11 +74,10 @@ class Application:
             return False
 
     # event -  onCompletePageLoading
-    def _on_pageLoaded(self, ok):
+    def on_page_loaded(self, ok):
         """
         will be fixed
         """
-        self.width = self.geometry[2]
         self.window.setGeometry(self.geometry[0], self.geometry[1],
                                 self.geometry[2], self.geometry[3])
         self.window.show()
@@ -75,23 +85,12 @@ class Application:
     # events - END
     # ---------------------------------------------------------------- #
 
-    def normalizeCmd(self, cmd):
-        cmd = cmd.replace('cmd::', '')
-        cmd = urllib.parse.unquote_plus(cmd)
-        cmd = os.path.expandvars(cmd)
-        if 'defaultBrowser' in cmd:
-            cmd = cmd.replace('defaultBrowser', DEFAULT_BROWSER)
-        if 'defaultFileManager' in cmd:
-            cmd = cmd.replace('defaultFileManager', DEFAULT_FM)
-
-        return cmd
-
     def on_command(self, cmd):
         """
         parsing commands from html
         """
         if cmd.startswith('cmd::'):
-            cmd = self.normalizeCmd(cmd)
+            cmd = normalize_command(cmd)
             print(cmd)
             if cmd == 'exit':
                 sys.exit()
@@ -182,8 +181,8 @@ class Application:
         self.web_view.page().setPalette(palette)
 
         self.web_view.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
-        self.web_view.loadFinished.connect(self._on_pageLoaded)
-        self.web_view.linkClicked.connect(self._on_navigation)
+        self.web_view.loadFinished.connect(self.on_page_loaded)
+        self.web_view.linkClicked.connect(self.on_navigation)
         self.web_view.setHtml(self.html_template)
 
         self.window.setCentralWidget(self.web_view)
