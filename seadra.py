@@ -21,6 +21,13 @@ TIMER_INTERVAL = 1000
 DEFAULT_MSG = "<html><body>Error in template</body></html>"
 
 
+def get_desktop_name():
+    current_desktop = os.environ.get('XDG_CURRENT_DESKTOP', '')
+    desktop_session = os.environ.get('DESKTOP_SESSION', '')
+    return current_desktop.lower() if current_desktop != '' \
+        else desktop_session.lower()
+
+
 def shell_cmd(cmd):
     try:
         p = Popen(cmd, shell=True, stdout=PIPE)
@@ -94,17 +101,6 @@ class Application:
         else:
             return False
 
-    def getDesktop(self):
-        try:
-            curDesktop = os.environ['XDG_CURRENT_DESKTOP']
-        except:
-            curDesktop = ''
-        try:
-            wmName = os.environ['DESKTOP_SESSION']
-        except:
-            wmName = ''
-        return curDesktop.lower() if curDesktop != '' else wmName.lower()
-
     def dbus_reader(self, msg):
         metadata = msg.arguments()[0]
         output = self.html_template
@@ -138,10 +134,12 @@ class Application:
         interface_name = 'org.freedesktop.MediaPlayer'
         signal_name = 'TrackChange'
         self.player = QtDBus.QDBusInterface(
-            service_name, service_path, interface_name, self.session_bus_connection)
+            service_name, service_path, interface_name,
+            self.session_bus_connection)
         self.dbus_message_handler = DBusMsgHandler()
         self.session_bus_connection.connect(
-            None, None, interface_name, signal_name, self.dbus_message_handler.handle)
+            None, None, interface_name, signal_name,
+            self.dbus_message_handler.handle)
 
         self.dbus_reader(self.player.call('GetMetadata'))
 
@@ -167,7 +165,7 @@ class Application:
         self.app = QApplication(sys.argv)
         self.window = QMainWindow()
 
-        if self.getDesktop() in ['openbox', 'pekwm']:
+        if get_desktop_name() in ['openbox', 'pekwm']:
             # windowAttribute for openbox/pekwm WM
             self.window.setAttribute(Qt.WA_X11NetWmWindowTypeDesktop)
         else:
