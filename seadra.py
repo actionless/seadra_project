@@ -2,7 +2,6 @@
 import sys
 import os
 import urllib.parse
-from PyQt5.QtCore import QTimer
 from PyQt5.QtWebKitWidgets import QWebView, QWebPage
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5 import QtCore
@@ -10,7 +9,6 @@ Qt = QtCore.Qt
 from PyQt5.QtGui import QPalette
 import PyQt5.QtDBus as QtDBus
 from subprocess import Popen, PIPE
-import dbus
 
 
 # @TODO: change appPath method
@@ -22,41 +20,27 @@ TIMER_INTERVAL = 1000
 # @TODO: improve error reporting, then config parse will be done
 DEFAULT_MSG = "<html><body>Error in template</body></html>"
 
-metadata = {}
-
 
 def shell_cmd(cmd):
     try:
         p = Popen(cmd, shell=True, stdout=PIPE)
         output = p.stdout.read()
-    except:
+    except Exception:
         output = ''
     return output
 
 
-class Browser:
+class Application:
 
     bus = None
+    session_bus_connection = None
+    dbus_message_handler = None
+    player = None
+    root = None
+    tracklist = None
 
-    def dbus_reader(self):
-        global metadata
-        try:
-            metadata = QtDBus.QDBusReply(
-                self.player.call('GetMetadata')).value()
-        except:
-            metadata = False
-        MSG = html_template
-        # @TODO: create shell::{some command} parser
-        MSG = MSG.replace('%UNAME%', shell_cmd('uname -a').decode('UTF-8'))
-        if metadata:
-            MSG = MSG.replace('%ARTIST%', metadata['artist'])
-            MSG = MSG.replace('%ALBUM%', metadata['album'])
-            MSG = MSG.replace('%TITLE%', metadata['title'])
-            MSG = MSG.replace('%ARTURL%', metadata['arturl'])
-        self.web_view.setHtml(MSG)
-        # list all available dbus parameters
-        #for data in metadata:
-        #    print data
+    html_template = None
+    geometry = None
 
     # ---------------------------------------------------------------- #
     # events - BEGIN
@@ -76,8 +60,9 @@ class Browser:
         """
         will be fixed
         """
-        self.width = geometry[2]
-        self.window.setGeometry(geometry[0], geometry[1], geometry[2], geometry[3])
+        self.width = self.geometry[2]
+        self.window.setGeometry(self.geometry[0], self.geometry[1],
+                                self.geometry[2], self.geometry[3])
         self.window.show()
     # ---------------------------------------------------------------- #
     # events - END
@@ -120,113 +105,95 @@ class Browser:
             wmName = ''
         return curDesktop.lower() if curDesktop != '' else wmName.lower()
 
-    def connect_to_player(self):
-        name = 'org.mpris.MediaPlayer2.clementine'
-        # first we connect to the objects
-        root_o = self.bus.get_object(name, "/")
-        player_o = self.bus.get_object(name, "/Player")
-        tracklist_o = self.bus.get_object(name, "/TrackList")
-        # there is only 1 interface per object
-        self.root = dbus.Interface(root_o, "org.freedesktop.MediaPlayer")
-        self.tracklist = dbus.Interface(tracklist_o, "org.freedesktop.MediaPlayer")
-        self.player = dbus.Interface(player_o, "org.freedesktop.MediaPlayer")
-        # connect to the TrackChange signal
-        player_o.connect_to_signal(
-            "TrackChange",
-            self.dbus_reader,
-            dbus_interface="org.freedesktop.MediaPlayer")
-        return True
-
-
+    def dbus_reader(self, msg):
+        metadata = msg.arguments()[0]
+        output = self.html_template
+        # @TODO: create shell::{some command} parser
+        # MSG = MSG.replace('%UNAME%', shell_cmd('uname -a').decode('UTF-8'))
+        if metadata:
+            output = output.replace('%ARTIST%', metadata['artist'])
+            output = output.replace('%ALBUM%', metadata['album'])
+            output = output.replace('%TITLE%', metadata['title'])
+            output = output.replace('%ARTURL%', metadata['arturl'])
+        self.web_view.setHtml(output)
 
     def init_dbus(self):
 
-        class Pong(QtCore.QObject):
+        class DBusMsgHandler(QtCore.QObject):
 
+            this = self
             instance = None
 
             def __init__(self, instance=0):
                 self.instance = instance
-                super(Pong, self).__init__()
+                super(DBusMsgHandler, self).__init__()
 
-            @QtCore.pyqtSlot('QString')
-            @QtCore.pyqtSlot(str, result=str)
-            @QtCore.pyqtSlot()
-            def ping(self, *args, **kwargs):
-                print(self.instance)
-                sys.stderr.write("ping(\"%s\") got called" % args[0])
+            @QtCore.pyqtSlot(QtDBus.QDBusMessage)
+            def handle(self, msg):
+                self.this.dbus_reader(msg)
 
-        #self.bus = dbus.SessionBus(mainloop=DBusQtMainLoop(set_as_default=True))
-        session_bus_connection = QtDBus.QDBusConnection.sessaionBus()
+        self.session_bus_connection = QtDBus.QDBusConnection.sessionBus()
         service_name = 'org.mpris.MediaPlayer2.clementine'
         service_path = '/Player'
         interface_name = 'org.freedesktop.MediaPlayer'
         signal_name = 'TrackChange'
         self.player = QtDBus.QDBusInterface(
-            service_name, service_path, interface_name, session_bus_connection)
+            service_name, service_path, interface_name, self.session_bus_connection)
+        self.dbus_message_handler = DBusMsgHandler()
+        self.session_bus_connection.connect(
+            None, None, interface_name, signal_name, self.dbus_message_handler.handle)
 
-        session_bus_connection.connect(
-            None, None, interface_name, signal_name, Pong(4).ping)
+        self.dbus_reader(self.player.call('GetMetadata'))
 
-        session_bus_connection.connect(
-            None, None, 'ru.gentoo.kbdd', 'layoutChanged', Pong(0).ping)
+    def read_cmd_line(self):
+        try:
+            self.html_template = open('index.html', 'r').read()
+        except Exception:
+            print('Error in template')
+            self.html_template = DEFAULT_MSG
 
-        self.dbus_reader()
-
+        # @TODO: here it will be config parsing, now it's a placeholder
+        try:
+            l, t, w, h = (600, 30, 680, 600)
+            self.geometry = (l, t, w, h)
+            self.html_template = self.html_template.replace('%WIDTH%', str(w))
+        except Exception:
+            print('Error in config')
+        self.html_template = self.html_template.replace('%PATH%', appPath)
 
     def __init__(self):
-        """
-        @TODO: clean it
-        """
-        global metadata
+        self.read_cmd_line()
+
         self.app = QApplication(sys.argv)
-        #self.init_dbus()
         self.window = QMainWindow()
-        # ------------------------------------------------------------ #
-        desktop = self.getDesktop()
-        print(desktop)
-        # windowAttribute for openbox/pekwm WM
-        if desktop in ['openbox', 'pekwm']:
+
+        if self.getDesktop() in ['openbox', 'pekwm']:
+            # windowAttribute for openbox/pekwm WM
             self.window.setAttribute(Qt.WA_X11NetWmWindowTypeDesktop)
-        # windowAttribute for any other DE like xfce, gnome, unity, kde etc
         else:
+            # windowAttribute for any other DE like xfce, gnome, unity, kde etc
             self.window.setAttribute(Qt.WA_X11NetWmWindowTypeDock)
             self.window.setWindowFlags(Qt.WindowStaysOnBottomHint)
         self.window.setAttribute(Qt.WA_TranslucentBackground)
-        # ------------------------------------------------------------ #
+
         self.web_view = QWebView()
+
         # trasparent webview
         palette = self.web_view.palette()
         palette.setBrush(QPalette.Base, Qt.transparent)
         self.web_view.page().setPalette(palette)
+
         self.web_view.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
         self.web_view.loadFinished.connect(self._on_pageLoaded)
         self.web_view.linkClicked.connect(self._on_navigation)
+        self.web_view.setHtml(self.html_template)
+
         self.window.setCentralWidget(self.web_view)
-        self.web_view.setHtml(html_template)
+
         self.init_dbus()
+
         sys.exit(self.app.exec_())
 
 
-def readCmdLine():
-    """
-    here is will be config parsing, now it is placeholder
-    """
-    global html_template, geometry
-    try:
-        html_template = open('index.html', 'r').read()
-    except:
-        print('Error in template')
-        html_template = DEFAULT_MSG
-    try:
-        l, t, w, h = (600, 30, 680, 600)
-        geometry = (l, t, w, h)
-        html_template = html_template.replace('%WIDTH%', str(w))
-    except:
-        print('Error in config')
-    html_template = html_template.replace('%PATH%', appPath)
-
-
 if __name__ == '__main__':
-    readCmdLine()
-    browser = Browser()
+    application = Application()
