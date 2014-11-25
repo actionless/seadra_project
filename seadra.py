@@ -1,18 +1,17 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
 import os
-import urllib
+import urllib.parse
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWebKitWidgets import QWebView, QWebPage
 from PyQt5.QtWidgets import QApplication, QMainWindow
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5 import QtCore
+Qt = QtCore.Qt
 from PyQt5.QtGui import QPalette
+import PyQt5.QtDBus as QtDBus
 from subprocess import Popen, PIPE
-
-
-import time
 import dbus
-#import re
+
 
 # @TODO: change appPath method
 appPath = os.path.dirname(os.path.realpath(__file__))
@@ -37,10 +36,13 @@ def shell_cmd(cmd):
 
 class Browser:
 
+    bus = None
+
     def dbus_reader(self):
         global metadata
         try:
-            metadata = player.GetMetadata()
+            metadata = QtDBus.QDBusReply(
+                self.player.call('GetMetadata')).value()
         except:
             metadata = False
         MSG = html_template
@@ -62,7 +64,7 @@ class Browser:
 
     # event -  onLinkCliked
     def _on_navigation(self, url):
-        url = str(url.toString().toUtf8())
+        url = str(url.toString())
         if self.on_command(url):
             return True
         else:
@@ -83,7 +85,7 @@ class Browser:
 
     def normalizeCmd(self, cmd):
         cmd = cmd.replace('cmd::', '')
-        cmd = urllib.unquote_plus(cmd)
+        cmd = urllib.parse.unquote_plus(cmd)
         cmd = os.path.expandvars(cmd)
         if 'defaultBrowser' in cmd:
             cmd = cmd.replace('defaultBrowser', DEFAULT_BROWSER)
@@ -118,12 +120,67 @@ class Browser:
             wmName = ''
         return curDesktop.lower() if curDesktop != '' else wmName.lower()
 
+    def connect_to_player(self):
+        name = 'org.mpris.MediaPlayer2.clementine'
+        # first we connect to the objects
+        root_o = self.bus.get_object(name, "/")
+        player_o = self.bus.get_object(name, "/Player")
+        tracklist_o = self.bus.get_object(name, "/TrackList")
+        # there is only 1 interface per object
+        self.root = dbus.Interface(root_o, "org.freedesktop.MediaPlayer")
+        self.tracklist = dbus.Interface(tracklist_o, "org.freedesktop.MediaPlayer")
+        self.player = dbus.Interface(player_o, "org.freedesktop.MediaPlayer")
+        # connect to the TrackChange signal
+        player_o.connect_to_signal(
+            "TrackChange",
+            self.dbus_reader,
+            dbus_interface="org.freedesktop.MediaPlayer")
+        return True
+
+
+
+    def init_dbus(self):
+
+        class Pong(QtCore.QObject):
+
+            instance = None
+
+            def __init__(self, instance=0):
+                self.instance = instance
+                super(Pong, self).__init__()
+
+            @QtCore.pyqtSlot('QString')
+            @QtCore.pyqtSlot(str, result=str)
+            @QtCore.pyqtSlot()
+            def ping(self, *args, **kwargs):
+                print(self.instance)
+                sys.stderr.write("ping(\"%s\") got called" % args[0])
+
+        #self.bus = dbus.SessionBus(mainloop=DBusQtMainLoop(set_as_default=True))
+        session_bus_connection = QtDBus.QDBusConnection.sessaionBus()
+        service_name = 'org.mpris.MediaPlayer2.clementine'
+        service_path = '/Player'
+        interface_name = 'org.freedesktop.MediaPlayer'
+        signal_name = 'TrackChange'
+        self.player = QtDBus.QDBusInterface(
+            service_name, service_path, interface_name, session_bus_connection)
+
+        session_bus_connection.connect(
+            None, None, interface_name, signal_name, Pong(4).ping)
+
+        session_bus_connection.connect(
+            None, None, 'ru.gentoo.kbdd', 'layoutChanged', Pong(0).ping)
+
+        self.dbus_reader()
+
+
     def __init__(self):
         """
         @TODO: clean it
         """
         global metadata
         self.app = QApplication(sys.argv)
+        #self.init_dbus()
         self.window = QMainWindow()
         # ------------------------------------------------------------ #
         desktop = self.getDesktop()
@@ -146,15 +203,8 @@ class Browser:
         self.web_view.loadFinished.connect(self._on_pageLoaded)
         self.web_view.linkClicked.connect(self._on_navigation)
         self.window.setCentralWidget(self.web_view)
-        #self.web_view.load(QUrl(self.default_site))
         self.web_view.setHtml(html_template)
-        #self.web_view.show()
-        self.dbus_timer = QTimer()
-        self.dbus_timer.timeout.connect(self.dbus_reader)
-        self.dbus_timer.start(TIMER_INTERVAL)
-        #self.window.setCentralWidget(self.web_view)
-
-    def main(self):
+        self.init_dbus()
         sys.exit(self.app.exec_())
 
 
@@ -169,7 +219,7 @@ def readCmdLine():
         print('Error in template')
         html_template = DEFAULT_MSG
     try:
-        l, t, w, h = (800, 30, 880, 600)
+        l, t, w, h = (600, 30, 680, 600)
         geometry = (l, t, w, h)
         html_template = html_template.replace('%WIDTH%', str(w))
     except:
@@ -177,36 +227,6 @@ def readCmdLine():
     html_template = html_template.replace('%PATH%', appPath)
 
 
-def connect_to_player(name):
-    global root, player, tracklist
-    # first we connect to the objects
-    root_o = bus.get_object(name, "/")
-    player_o = bus.get_object(name, "/Player")
-    tracklist_o = bus.get_object(name, "/TrackList")
-    # there is only 1 interface per object
-    root = dbus.Interface(root_o, "org.freedesktop.MediaPlayer")
-    tracklist = dbus.Interface(tracklist_o, "org.freedesktop.MediaPlayer")
-    player = dbus.Interface(player_o, "org.freedesktop.MediaPlayer")
-    # connect to the TrackChange signal
-    #player_o.connect_to_signal("TrackChange", TrackChange, dbus_interface="org.freedesktop.MediaPlayer")
-    return True
-
-
-def init_dbus():
-    global bus
-    bus = dbus.SessionBus()
-    while True:
-        try:
-            # @TODO: support other players via DBus or cli if DBus not supported
-            connect_to_player('org.mpris.MediaPlayer2.clementine')
-            break
-        except:
-            print('Cannot connect to Clementine via DBus')
-            time.sleep(1)
-
-
 if __name__ == '__main__':
     readCmdLine()
-    init_dbus()
     browser = Browser()
-    browser.main()
