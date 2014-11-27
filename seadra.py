@@ -93,6 +93,9 @@ class CmdHandler(object):
 
     def __init__(self, application):
         self.application = application
+        self.application.command_handlers.update({
+            'cmd': self,
+        })
 
     def handle(self, cmd):
         if cmd == 'exit':
@@ -116,6 +119,7 @@ class Application(object):
     html_template = None
     geometry = None
 
+    loaded_plugins = None
     command_handlers = None
 
     metadata = None
@@ -168,15 +172,12 @@ class Application(object):
 
     def __init__(self):
 
-        self.command_handlers = {
-            'cmd': CmdHandler(self),
-        }
-
         self.app = QApplication(sys.argv)
         self.window = QMainWindow()
 
         self.read_config()
         self.metadata = {}
+        self.command_handlers = {}
 
         if get_desktop_name() in ['openbox', 'pekwm']:
             # windowAttribute for openbox/pekwm WM
@@ -202,7 +203,10 @@ class Application(object):
         self.window.setCentralWidget(self.web_view)
         self.window.show()
 
-        self.clementine = ClementineDBusInterface(self)
+        self.loaded_plugins = [
+            CmdHandler(self),
+            ClementineDBusInterface(self),
+        ]
 
         sys.exit(self.app.exec_())
 
