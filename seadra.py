@@ -62,7 +62,7 @@ class ClementineDBusInterface(object):
     root_interface = None
     tracklist_interface = None
 
-    def dbus_reader(self, msg):
+    def _on_message(self, msg):
         if msg.arguments()[0]:
             self.application.metadata.update(msg.arguments()[0])
             self.application.render_template()
@@ -80,9 +80,9 @@ class ClementineDBusInterface(object):
         self.player = QDBusInterface(
             service_name, service_path, interface_name,
             self.session_bus_connection)
-        self.dbus_reader(self.player.call('GetMetadata'))
+        self._on_message(self.player.call('GetMetadata'))
 
-        self.dbus_message_handler = DBusMsgHandler(self.dbus_reader)
+        self.dbus_message_handler = DBusMsgHandler(self._on_message)
         self.session_bus_connection.connect(
             None, None, interface_name, signal_name,
             self.dbus_message_handler.handle)
@@ -124,8 +124,7 @@ class Application(object):
 
     metadata = None
 
-    # event -  onLinkCliked
-    def on_navigation(self, url):
+    def _on_navigation(self, url):
         url = str(url.toString())
         handler, cmd = url.split('::')
         if handler and handler in self.command_handlers:
@@ -146,7 +145,7 @@ class Application(object):
             output = output.replace('%ARTURL%', metadata['arturl'])
         self.web_view.setHtml(output)
 
-    def read_config(self):
+    def _read_config(self):
         # @TODO: here it will be config parsing, now it's a placeholder
 
         self.settings = SETTINGS
@@ -175,9 +174,9 @@ class Application(object):
         self.app = QApplication(sys.argv)
         self.window = QMainWindow()
 
-        self.read_config()
         self.metadata = {}
         self.command_handlers = {}
+        self._read_config()
 
         if get_desktop_name() in ['openbox', 'pekwm']:
             # windowAttribute for openbox/pekwm WM
@@ -196,7 +195,7 @@ class Application(object):
         self.web_view.page().setPalette(palette)
 
         self.web_view.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
-        self.web_view.linkClicked.connect(self.on_navigation)
+        self.web_view.linkClicked.connect(self._on_navigation)
         self.web_view.setHtml(self.html_template)
 
         self.window.setGeometry(*self.settings['geometry'])
