@@ -94,8 +94,9 @@ class ClementineDBusInterface(object):
     tracklist_interface = None
 
     def dbus_reader(self, msg):
-        self.application.metadata.update(msg.arguments()[0])
-        self.application.render_template()
+        if msg.arguments()[0]:
+            self.application.metadata.update(msg.arguments()[0])
+            self.application.render_template()
 
     def __init__(self, application):
         self.application = application
