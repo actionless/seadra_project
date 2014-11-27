@@ -52,37 +52,6 @@ class DBusMsgHandler(QObject):
         self.callback(msg)
 
 
-class CommandsHandler(object):
-    settings = None
-
-    def normalize_command(self, cmd):
-        cmd = cmd.replace('cmd::', '')
-        cmd = urllib.parse.unquote_plus(cmd)
-        cmd = os.path.expandvars(cmd)
-        if 'defaultBrowser' in cmd:
-            cmd = cmd.replace(
-                'defaultBrowser', self.settings["browser"])
-        if 'defaultFileManager' in cmd:
-            cmd = cmd.replace(
-                'defaultFileManager', self.settings["filemanager"])
-        return cmd
-
-    def handle_command(self, cmd):
-        """
-        parsing commands from html
-        """
-        if cmd.startswith('cmd::'):
-            cmd = self.normalize_command(cmd)
-            print(cmd)
-            if cmd == 'exit':
-                sys.exit()
-            else:
-                Popen(cmd, shell=True)
-            return True
-        else:
-            return False
-
-
 class ClementineDBusInterface(object):
     application = None
 
@@ -119,21 +88,44 @@ class ClementineDBusInterface(object):
             self.dbus_message_handler.handle)
 
 
-class Application(CommandsHandler):
+class CmdHandler(object):
+    application = None
+
+    def __init__(self, application):
+        self.application = application
+
+    def handle(self, cmd):
+        if cmd == 'exit':
+            sys.exit()
+        else:
+            cmd = urllib.parse.unquote_plus(cmd)
+            cmd = os.path.expandvars(cmd)
+            if 'defaultBrowser' in cmd:
+                cmd = cmd.replace('defaultBrowser',
+                                  self.application.settings["browser"])
+            if 'defaultFileManager' in cmd:
+                cmd = cmd.replace('defaultFileManager',
+                                  self.application.settings["filemanager"])
+            Popen(cmd, shell=True)
+        return True
+
+
+class Application(object):
 
     settings = None
+    html_template = None
+    geometry = None
+
+    command_handlers = None
 
     metadata = None
-
-    html_template = None
-    screen_geometry = None
-    geometry = None
 
     # event -  onLinkCliked
     def on_navigation(self, url):
         url = str(url.toString())
-        if self.handle_command(url):
-            return True
+        handler, cmd = url.split('::')
+        if handler and handler in self.command_handlers:
+            return self.command_handlers[handler].handle(cmd)
         else:
             self.web_view.load(QUrl(url))
             return False
@@ -163,10 +155,10 @@ class Application(CommandsHandler):
 
         left = self.settings.get(
             "left",
-            self.screen_geometry.width() -
+            self.app.desktop().screenGeometry().width() -
             self.settings["right"] - self.settings["width"]
         )
-        self.geometry = (
+        self.settings['geometry'] = (
             left, self.settings["top"],
             self.settings["width"], self.settings["height"]
         )
@@ -176,8 +168,11 @@ class Application(CommandsHandler):
 
     def __init__(self):
 
+        self.command_handlers = {
+            'cmd': CmdHandler(self),
+        }
+
         self.app = QApplication(sys.argv)
-        self.screen_geometry = self.app.desktop().screenGeometry()
         self.window = QMainWindow()
 
         self.read_config()
@@ -203,8 +198,7 @@ class Application(CommandsHandler):
         self.web_view.linkClicked.connect(self.on_navigation)
         self.web_view.setHtml(self.html_template)
 
-        self.window.setGeometry(self.geometry[0], self.geometry[1],
-                                self.geometry[2], self.geometry[3])
+        self.window.setGeometry(*self.settings['geometry'])
         self.window.setCentralWidget(self.web_view)
         self.window.show()
 
